@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/jugador.css">
+  <link rel="stylesheet" href="css/bootstrap.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+
+  <!-- update the version number as needed -->
+  <script defer src="/__/firebase/9.7.0/firebase-app-compat.js"></script>
+  <!-- include only the Firebase features as you need -->
+  <script defer src="/__/firebase/9.7.0/firebase-auth-compat.js"></script>
+  <script defer src="/__/firebase/9.7.0/firebase-database-compat.js"></script>
+
+
+  <script type="module">
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.7.0/firebase-app.js";
+    import { getDatabase, ref, onValue, push, set, get, child, update, off } from "https://www.gstatic.com/firebasejs/9.7.0/firebase-database.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, createUserWithEmailAndPassword,signOut  } from "https://www.gstatic.com/firebasejs/9.7.0/firebase-auth.js";
+    // TODO: Add SDKs for Firebase products that you want to use
+    // https://firebase.google.com/docs/web/setup#available-libraries
+    // Your web app's Firebase configuration
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAgwF1qoJLNIPipU3NN3QJEik5St6xBnPE",
+      authDomain: "clicker-devfest2022.firebaseapp.com",
+      databaseURL: "https://clicker-devfest2022-default-rtdb.firebaseio.com",
+      projectId: "clicker-devfest2022",
+      storageBucket: "clicker-devfest2022.appspot.com",
+      messagingSenderId: "15974937065",
+      appId: "1:15974937065:web:94be173de80b3d06cd9b78"
+    };
+
+    // Initialize Firebase
+    //https://firebase.google.com/docs/cloud-messaging/js/client?authuser=0 Agregar notificaciones
+    const app = initializeApp(firebaseConfig);
+    let user,nickname;
+    let ventana_carga, ventana_login, ventana_registro, ventana_competidor, ventana_fin, ventana_home,btn_ir_registro,btn_cerrar_fin_juego,btn_ya_estoy_regitrado;
+    let respuestas = [];
+    // Get a reference to the database service
+    const db = getDatabase(app);
+/*
+    function cerrarSesion(){
+      const auth = getAuth();
+      signOut(auth).then(() => {
+      // Sign-out successful.
+      }).catch((error) => {
+      // An error happened.
+      });
+    }*/
+
+    function validarSesion() {
+      const auth = getAuth();
+      onAuthStateChanged(auth, (user_data) => {
+        if (user_data) {
+          // User is signed in, see docs for a list of available properties
+          // https://firebase.google.com/docs/reference/js/firebase.User
+          user = user_data;
+        } 
+        else {
+          // User is signed out
+          console.log("No tiene sesion");
+        }
+      });
+    }
+
+    function autenticar(data) {
+      if (data) {
+        signInWithEmailAndPassword(getAuth(), data.email, data.password)
+          .then((userCredential) => {
+            user = userCredential.user;
+            actualizarUsuario(user);
+            crearCarrilJugador({nickname:nickname});
+            //obtenerId();
+            cambiarSeccion(ventana_carga, ventana_home);             
+          })
+          .catch((error) => {
+            mensaje({
+              emoji: "😥",
+              texto_boton: "Intenta nuevamente",
+              texto_mensaje: "Revisa los datos, ocurrio un error.",
+              titulo: "Oops!",
+              color_texto: "color_error_texto",
+              color_borde: "color_error_borde",
+              color_borde_ventana: "color_error_borde_ventana"
+            });
+            cambiarSeccion(ventana_carga, ventana_login);     
+            resetearLogin();       
+          });
+      }
+    }
+
+    function actualizarUsuario(data){
+      const email = data.email;
+      const username = email.split("@")[0];
+      const usuario_tag = document.getElementById("usuario_tag");
+      nickname = username;
+      usuario_tag.innerHTML = `💖${username.substring(0,10)}🐉`;
+    }
+
+    function crearUsuario(data) {
+      const auth = getAuth();
+      createUserWithEmailAndPassword(auth, data.email, data.password)
+        .then((userCredential) => {
+          // Signed in
+          user = userCredential.user;
+          actualizarUsuario(user);
+          crearCarrilJugador({nickname:nickname});
+          //obtenerId();
+          mensaje({
+            emoji: "🥳",
+            texto_boton: "Continuar",
+            texto_mensaje: "Muy bien, logueo exitoso, continua disfrutando del sitio.",
+            titulo: "Yayy!",
+            color_texto: "color_exito_texto",
+            color_borde: "color_exito_borde",
+            color_borde_ventana: "color_exito_borde_ventana"
+          });
+          cambiarSeccion(ventana_carga, ventana_home); 
+        })
+        .catch((error) => {
+          //const errorCode = error.code;
+          //const errorMessage = error.message;
+          // ..
+          mensaje({
+            emoji: "😥",
+            texto_boton: "Intenta nuevamente",
+            texto_mensaje: "Revisa los datos, ocurrio un error.",
+            titulo: "Oops!",
+            color_texto: "color_error_texto",
+            color_borde: "color_error_borde",
+            color_borde_ventana: "color_error_borde_ventana"
+          });
+          cambiarSeccion(ventana_carga, ventana_registro); 
+          resetearRegistro();
+        });
+    }
+
+    function init() {
+
+      ventana_carga = document.querySelector(".carga");
+      ventana_login = document.querySelector(".login-bottom");
+      ventana_registro = document.querySelector(".registro-bottom");
+      ventana_home = document.getElementById("home");
+
+      btn_ya_estoy_regitrado = document.getElementById("btn_ya_estoy_regitrado");
+      btn_ir_registro = document.getElementById("btn_ir_registro");
+
+      btn_ya_estoy_regitrado.addEventListener("click", () => {
+        cambiarSeccion(ventana_registro, ventana_login);
+      });
+
+      btn_ir_registro.addEventListener("click", () => {
+        cambiarSeccion(ventana_login, ventana_registro);
+      });
+
+      /*btn_cerrar_fin_juego.addEventListener("click",()=>{
+        location.reload();
+        return false;
+      });
+
+      btn_nickname.addEventListener("click",(evento)=>{
+        if(txt_nickname.value!="")
+        {
+          cambiarSeccion(ventana_nickname,ventana_carga);
+          autenticar(usuarios[usr]);
+        }
+        else
+        {
+          sonidoError();
+        }
+      });*/
+
+      let e2 = new Event("registrar_usuario");
+      document.addEventListener("registrar_usuario", (event) => {
+        //console.log(event.detail.data);
+        cambiarSeccion(ventana_registro, ventana_carga);
+        crearUsuario(event.detail.data);
+      }, false);
+
+      let e3 = new Event("login_usuario");
+      document.addEventListener("login_usuario", (event) => {
+        //console.log(event.detail.data);
+        cambiarSeccion(ventana_login, ventana_carga);
+        autenticar(event.detail.data);
+      }, false);
+
+      let e4 = new Event("actualizar_valor");
+      document.addEventListener("actualizar_valor", (event) => {
+        //console.log(event.detail.data);
+        actualizarValor() ;
+      }, false);
+
+      iniciarLogin();
+      iniciarRegistro();
+      //cerrarSesion();
+      
+    }
+
+    function crearCarrilJugador(data) {
+      let peticion = ref(db, `/carrera/competidores/${user.uid}`);
+      //const nuevo_dato = push(peticion);
+      set(peticion, {
+        "total": "0",
+        "nickname": data.nickname
+      });
+    }
+
+    function actualizarValor() {
+      const peticion = ref(db, `/carrera/competidores/${user.uid}`);
+
+      get(child(peticion, "/total")).then((snapshot) => {
+        if (snapshot.exists()) {
+          var data = snapshot.val();
+          var total = Number(data) + 1;
+          update(peticion, {
+              "total": total,
+              "nickname": nickname
+          });
+        }
+        else {
+          console.log("No data available");
+        }
+      }).catch((error) => {
+        console.error(error);
+      });
+    }
+
+    function actualizarPosicion(evento) {
+      try{
+        const raiz = ref(db, `/carrera/competidores/${user.uid}`);
+        const competidor = child(raiz, user.uid + "/respuestas");
+        set(competidor, respuestas);
+      }
+      catch(e){
+        console.log(e);
+      }
+    }
+
+    init();
+  </script>
+</head>
+
+<body>
+  <section class="carga ocultar">
+    <!--TODO:Personalizar con el diseño de carga -->
+    <div class="lds-default">
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+  </section>
+
+  <div id="fin_juego" class="ligthbox ocultar">
+    <div class="contenido-ventana">
+      <img src="img/isotipo.png" alt="">
+      <p>¡Muy bien!, quedaste en el puesto #</p>
+      <span id="posicion_competidor">00</span>
+      <a href="javascript:void(0);" id="btn_cerrar_fin_juego">Ok</a>
+    </div>
+  </div>
+
+  <div id="ventana" class="ligthbox ocultar">
+    <div class="contenido-ventana">
+      <span></span>
+      <h1></h1>
+      <p></p>
+      <button type="button" id="btn_cerrar_modal"></button>
+    </div>
+  </div>
+
+  <section class="login-bottom py-5">
+    <div class="container">
+      <div class="content-grid">
+        <div class="text-center icon">
+          <img src="img/isotipo.png" alt="">
+          <h2>INGRESAR A LA COMPETENCIA</h2>
+        </div>
+        <div class="content-bottom">
+          <form id="frm_login" method="post">
+            <div class="field-group">
+              <div class="content-input-field">
+                <input name="login_correo" id="login_correo" type="email" value="" placeholder="Ingrese el correo"
+                  required="">
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="content-input-field">
+                <input name="login_clave" id="login_clave" type="Password" placeholder="Ingresa la clave" required="">
+              </div>
+            </div>
+            <div class="content-input-field">
+              <button type="submit" id="btn_loguear" class="btn">
+                Ingresar
+              </button>
+            </div>
+            <div class="list-login-bottom text-center mt-lg-5 mt-4">
+              <a href="javascript:void(0);" id="btn_ir_registro" class="">
+                ¿No tiene una cuenta?
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="registro-bottom py-5 ocultar">
+    <div class="container">
+      <div class="content-grid">
+        <div class="text-center icon">
+          <img src="img/isotipo.png" alt="">
+        </div>
+        <div class="content-bottom">
+          <form id="frm_registro" method="post">
+            <div class="field-group">
+
+              <div class="content-input-field">
+                <input name="registro_nombre" id="registro_nombre" type="text" value="" placeholder="Ingrese el nombre"
+                  required="">
+              </div>
+            </div>
+            <div class="field-group">
+
+              <div class="content-input-field">
+                <input name="registro_correo" id="registro_correo" type="email" value="" placeholder="Ingrese el correo"
+                  required="">
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="content-input-field">
+                <input pattern=".{6,}" name="registro_clave" id="registro_clave" type="Password"
+                  title="La clave debe tener minimo 6 caracteres" placeholder="Ingrese la clave" required="">
+              </div>
+            </div>
+            <div class="content-input-field">
+              <button type="submit" id="btn_registrar" class="btn">
+                Registrarse
+              </button>
+            </div>
+            <div class="list-login-bottom text-center mt-lg-5 mt-4">
+              <a href="javascript:void(0);" id="btn_ya_estoy_regitrado" class="">Ya estoy registrado</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+              <span>Al presionar registrarse, acepta los términos y condiciones</span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="home" class="ocultar">
+    <div id="imagen"></div>
+    <span id="usuario_tag">
+    </span>
+  </section>
+
+  <section class="nickname-bottom py-5 ocultar">
+    <div class="container">
+      <div class="content-grid">
+        <div class="text-center icon">
+          <img src="img/isotipo.png" alt="">
+        </div>
+        <div class="content-bottom">
+          <div class="content-input-field">
+            <input name="txt_nickname" id="txt_nickname" type="email" value="" placeholder="Ingrese su nickname"
+              required="">
+          </div>
+          <div class="content-input-field">
+            <button type="submit" id="btn_nickname" class="btn">
+              Ingresar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="competidor" class="ocultar">
+
+  </section>
+
+  <!-- script src="js/ui_sonidos.js"></script -->
+  <script src="js/login.js"></script>
+  <script src="js/registro.js"></script>
+  <script src="js/utilitarios.js"></script>
+  <script src="js/jugador.js"></script>
+  <script src="js/perritus-ui.js"></script>
+
+  <!-- Google Analytics: change UA-XXXXX-X to be your site's ID. -->
+  <script>
+            // (function(b,o,i,l,e,r){b.GoogleAnalyticsObject=l;b[l]||(b[l]=
+            // function(){(b[l].q=b[l].q||[]).push(arguments)});b[l].l=+new Date;
+            // e=o.createElement(i);r=o.getElementsByTagName(i)[0];
+            // e.src='//www.google-analytics.com/analytics.js';
+            // r.parentNode.insertBefore(e,r)}(window,document,'script','ga'));
+            // ga('create','UA-XXXXX-X','auto');ga('send','pageview');
+  </script>
+</body>
+
+</html>
